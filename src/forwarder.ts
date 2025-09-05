@@ -8,6 +8,7 @@ import {calculateNewVersionTopicId} from './encryption';
 import {HealthServer} from './health';
 import {logger} from './logger';
 import {HameApi, DeviceInfo} from './hame_api';
+import {V154MessageDecryptor} from './v154_decryption';
 
 const deviceGenerations = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 25, 50] as const;
 type DeviceGen = typeof deviceGenerations[number];
@@ -29,6 +30,7 @@ interface Device {
   broker_id?: string;
   remote_id?: string;
   use_remote_topic_id?: boolean;
+  v154_decryption?: boolean;
 }
 
 interface BrokerDefinition {
@@ -52,6 +54,7 @@ interface ForwarderConfig {
   password?: string;
   remote: BrokerDefinition;
   broker_id: string;
+  enable_v154_decryption?: boolean;
 }
 
 interface MainConfig {
@@ -61,6 +64,7 @@ interface MainConfig {
   username?: string;
   password?: string;
   default_broker_id?: string;
+  enable_v154_decryption?: boolean;
 }
 
 
@@ -206,12 +210,20 @@ class MQTTForwarder {
   private rateLimitedMessages: Map<string, number> = new Map(); // Store when rate-limited messages were last forwarded
   private processedMessages: Map<string, number> = new Map(); // Store message hashes to prevent loops
   private readonly RATE_LIMITED_CODES = [1, 13, 15, 16, 21, 26, 28, 30]; // Message codes to rate-limit (as numbers)
+  private v154Decryptor?: V154MessageDecryptor; // V154 firmware message decryptor
 
   constructor(private readonly config: ForwarderConfig) {
     this.logger = logger.child({}, {
         msgPrefix: `[${config.broker_id}] `,
       }
     );
+    
+    // Initialize V154 decryptor if enabled
+    if (this.config.enable_v154_decryption) {
+      this.v154Decryptor = new V154MessageDecryptor();
+      this.logger.info('V154 AES decryption support enabled (EXPERIMENTAL)');
+    }
+    
     this.initializeBrokers();
   }
 
@@ -554,6 +566,35 @@ class MQTTForwarder {
     this.logger.debug(`From: ${from}`);
     this.logger.debug(`To: ${to}`);
     
+    // Handle V154 decryption if enabled
+    let messageToForward = message;
+    let originalEncryptedMessage: Buffer | undefined;
+    
+    if (this.v154Decryptor && (matchedDevice.v154_decryption ?? this.config.enable_v154_decryption)) {
+      // Check if this message might be v154 encrypted
+      if (isDevice && targetClient === this.configBroker && this.v154Decryptor.mightBeV154Encrypted(message)) {
+        // Message from device going to local broker - attempt decryption
+        this.logger.info(`Attempting V154 decryption for device message on topic: ${topic}`);
+        
+        const decryptionResult = this.v154Decryptor.decryptMessage(message);
+        
+        // Always log debug info for user verification
+        this.v154Decryptor.logDebugInfo(topic, message, decryptionResult);
+        
+        if (decryptionResult.success && decryptionResult.decrypted) {
+          // Successfully decrypted - send decrypted to local, original to remote
+          originalEncryptedMessage = message;
+          messageToForward = decryptionResult.decrypted;
+          this.logger.info('V154 decryption successful - will send decrypted to local broker');
+        } else {
+          this.logger.warn('V154 decryption failed or validation failed - forwarding original message');
+        }
+      } else if (!isDevice && targetClient === this.remoteBroker) {
+        // App message going to remote - check if we need to keep it encrypted
+        this.logger.debug('App message going to remote broker - forwarding as-is');
+      }
+    }
+    
     // Add relay instance header to the message to prevent loops
     const publishOptions = {
       properties: {
@@ -563,8 +604,20 @@ class MQTTForwarder {
       }
     };
     
-    targetClient.publish(newTopic, message, publishOptions);
-    this.logger.info(`Forwarded message from ${from} to ${to}: ${topic} -> ${newTopic}`);
+    // Forward the message
+    if (targetClient === this.configBroker && originalEncryptedMessage) {
+      // Forwarding decrypted message to local broker
+      targetClient.publish(newTopic, messageToForward, publishOptions);
+      this.logger.info(`Forwarded DECRYPTED message from ${from} to ${to}: ${topic} -> ${newTopic}`);
+    } else if (targetClient === this.remoteBroker && originalEncryptedMessage) {
+      // When forwarding to remote, always use the original encrypted message
+      targetClient.publish(newTopic, originalEncryptedMessage, publishOptions);
+      this.logger.info(`Forwarded ORIGINAL ENCRYPTED message from ${from} to ${to}: ${topic} -> ${newTopic}`);
+    } else {
+      // Normal forwarding (no decryption involved)
+      targetClient.publish(newTopic, messageToForward, publishOptions);
+      this.logger.info(`Forwarded message from ${from} to ${to}: ${topic} -> ${newTopic}`);
+    }
   }
 
   public close(): void {
@@ -741,6 +794,7 @@ async function start() {
       logger.info(`  Broker: ${device.broker_id}`);
       logger.info(`  Inverse Forwarding: ${device.inverse_forwarding ?? config.inverse_forwarding ?? false}`);
       logger.info(`  Use Remote Topic ID: ${device.use_remote_topic_id ?? false}`);
+      logger.info(`  V154 Decryption: ${device.v154_decryption ?? config.enable_v154_decryption ?? false}`);
       logger.info('------------------');
     });
     logger.info('');
@@ -757,7 +811,8 @@ async function start() {
         username: config.username,
         password: config.password,
         remote: brokers[id],
-        broker_id: id
+        broker_id: id,
+        enable_v154_decryption: config.enable_v154_decryption
       };
       const fw = new MQTTForwarder(fconfig);
       forwarders.push(fw);

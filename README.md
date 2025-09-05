@@ -91,6 +91,7 @@ mkdir config
   "default_broker_id": "hame-2024",
   "username": "your_hame_email@example.com",
   "password": "your_hame_password",
+  "enable_v154_decryption": false,
   "devices": [
     { "device_id": "24-digit-device-id", "mac": "maccaddresswithoutcolons", "type": "HMA-1", "version": 0 }
   ]
@@ -103,7 +104,9 @@ mkdir config
   - `true`: Storage uses Hame broker, enable local control (**Required for Venus/Jupiter, optional for Saturn/B2500**)
 - `username` and `password`: Your Hame account credentials for automatic device information retrieval
 - `default_broker_id`: Identifier of the remote broker to use (defaults to `hame-2024`)
+- `enable_v154_decryption`: **(EXPERIMENTAL)** Enable AES decryption for v154 firmware messages (default: `false`)
 - `devices`: Your storage systems' details (can use dummy values initially if using automatic retrieval)
+  - `v154_decryption`: (optional) Per-device override for v154 decryption
 - Remote broker settings are loaded from `brokers.json`. Each broker can specify
   `topic_prefix`, `client_id_prefix` (defaults to `hm_`), and an optional
   `topic_encryption_key` used to generate remote device identifiers.
@@ -211,6 +214,7 @@ The add-on will automatically use your Home Assistant MQTT settings if configure
   - `type`: Your device's type (e.g. HMA-1, HMA-2, HMA-3 etc.)
   - `version`: (optional) Firmware version used for automatic broker selection. Enter the number without any decimal point (e.g. firmware `226.1` becomes `226`)
   - `inverse_forwarding`: (optional) Override the global setting for the operation mode of this device
+  - `v154_decryption`: (optional) Override the global `enable_v154_decryption` setting for this specific device
 
 ### Optional Configuration
 
@@ -220,6 +224,10 @@ The add-on will automatically use your Home Assistant MQTT settings if configure
 - `username`: Your Hame account email address. When provided along with password, 
   the tool will automatically fetch device information from the Hame API and display it in the logs.
 - `password`: Your Hame account password. Required when using automatic device information retrieval.
+- `enable_v154_decryption`: **(EXPERIMENTAL)** Enable AES decryption for v154 firmware messages (default: `false`). 
+  When enabled, encrypted MQTT messages from devices will be decrypted before forwarding to the local broker, 
+  while the original encrypted messages are preserved when forwarding to the Marstek server.
+  Detailed debug logs will be generated to help verify decryption is working correctly.
 - `log_level`: Adjust log verbosity (`trace`, `debug`, `info`, `warn`, `error`, `fatal`).
 
 ## Development

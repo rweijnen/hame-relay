@@ -30,9 +30,11 @@ schema:
   log_level: list(trace|debug|info|warn|error|fatal)?
   username: str?
   password: password?
+  enable_v154_decryption: bool?
   devices:
     - device_id: str
       mac: str
       type: str
       version: int?
       inverse_forwarding: bool?
+      v154_decryption: bool?

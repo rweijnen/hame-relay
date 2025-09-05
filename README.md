@@ -70,6 +70,177 @@ This configuration allows you to use Mode 1, where your Saturn/B2500 connects to
 
 Now your storage can be controlled through your own MQTT broker. See [this document](https://eu.hamedata.com/ems/mqtt/index.html?version=2) for more information.
 
+## Testing V154 Firmware Decryption (EXPERIMENTAL)
+
+**⚠️ This is an experimental feature for v154 firmware that encrypts MQTT messages with AES.**
+
+### Installing the Test Version
+
+#### Docker Installation
+
+To test the v154 decryption feature, use the experimental branch:
+
+```bash
+# Clone the repository with the v154 decryption branch
+git clone -b feature/v154-aes-decryption https://github.com/rweijnen/hame-relay.git
+cd hame-relay
+
+# Build the Docker image locally
+docker build -t hame-relay-v154:test .
+
+# Create config directory
+mkdir -p config
+
+# Create config/config.json with v154 decryption enabled (see example below)
+```
+
+Example configuration for v154 testing:
+```json
+{
+  "broker_url": "mqtt://username:password@your-broker-url",
+  "inverse_forwarding": false,
+  "default_broker_id": "hame-2024",
+  "enable_v154_decryption": true,
+  "log_level": "debug",
+  "devices": [
+    { 
+      "device_id": "your-24-digit-device-id", 
+      "mac": "yourmacwithoutcolons", 
+      "type": "HMA-1", 
+      "version": 154,
+      "v154_decryption": true
+    }
+  ]
+}
+```
+
+Run with debug logging enabled:
+```bash
+docker run -d \
+  --name hame-relay-v154-test \
+  --restart unless-stopped \
+  -v "$(pwd)/config:/app/config" \
+  -e LOG_LEVEL=debug \
+  hame-relay-v154:test
+```
+
+#### Docker Compose Installation
+
+Create `docker-compose.yml`:
+```yaml
+version: '3.8'
+
+services:
+  hame-relay-v154:
+    build: .
+    container_name: hame-relay-v154-test
+    restart: unless-stopped
+    volumes:
+      - ./config:/app/config
+    environment:
+      - LOG_LEVEL=debug
+```
+
+Then run:
+```bash
+git clone -b feature/v154-aes-decryption https://github.com/rweijnen/hame-relay.git
+cd hame-relay
+# Create config/config.json with v154 settings (see above)
+docker-compose up -d
+docker-compose logs -f  # View logs
+```
+
+### Collecting Logs for Verification
+
+View real-time logs:
+```bash
+docker logs -f hame-relay-v154-test
+```
+
+Save logs to file for analysis:
+```bash
+docker logs hame-relay-v154-test > v154-test-logs.txt 2>&1
+```
+
+### What to Look for in Logs
+
+When v154 decryption is working, you should see:
+
+1. **Initialization message:**
+   ```
+   V154 AES decryption support enabled (EXPERIMENTAL)
+   ```
+
+2. **When a device message arrives:**
+   ```
+   Attempting V154 decryption for device message on topic: [topic]
+   === V154 Decryption Debug Info ===
+   Topic: hame_energy/HMA-1/device/[mac]/ctrl
+   Original (hex): [encrypted hex data]
+   Original (length): [number] bytes
+   Key (hex): 21402324255e262a28295f2b7b7d5b5d
+   Decrypted (hex): [decrypted hex data]
+   Decrypted (string): cd=1&dts=123456&mac=...
+   Status: SUCCESS
+   =================================
+   V154 decryption successful - will send decrypted to local broker
+   ```
+
+3. **If decryption fails:**
+   ```
+   Status: FAILED
+   Error: [error message]
+   ```
+
+### Verifying It's Working
+
+1. **Check Home Assistant/Local MQTT:**
+   - Messages should appear as readable text (e.g., `cd=1&dts=...`)
+   - Your home automation should be able to parse the messages
+
+2. **Check Mobile App:**
+   - The official app should still work normally
+   - Messages to the Marstek server remain encrypted
+
+### Reporting Issues
+
+If you encounter issues, please provide:
+
+1. **Device information:**
+   - Device type (HMA-1, HMA-2, etc.)
+   - Firmware version (exactly as shown in app)
+   
+2. **Log file** with debug enabled (see above)
+
+3. **Sample of the decryption debug output** showing:
+   - Original (hex)
+   - Decrypted (string) if successful
+   - Error message if failed
+
+4. Report to: https://github.com/rweijnen/hame-relay/issues
+
+Include "V154 Decryption Test" in your issue title.
+
+### Troubleshooting V154 Decryption
+
+**Problem: No decryption attempts in logs**
+- Ensure `enable_v154_decryption: true` is set
+- Check device version is set to 154
+- Verify messages are coming from device (not just App messages)
+
+**Problem: Decryption fails with "Invalid data length"**
+- Message may not be AES encrypted
+- Try without v154_decryption first to see raw messages
+
+**Problem: Decryption succeeds but data looks wrong**
+- The firmware might use a different encryption key
+- Please report with hex data samples
+
+**Problem: Mobile app stops working**
+- Check that encrypted messages are still being forwarded to remote broker
+- Look for "Forwarded ORIGINAL ENCRYPTED message" in logs
+- Ensure `inverse_forwarding` is set correctly for your setup
+
 ## Docker
 
 The relay can be run either directly with Docker or using Docker Compose.
@@ -160,6 +331,32 @@ docker compose up -d
 ```
 
 # Home Assistant
+
+## Testing V154 Decryption in Home Assistant
+
+**⚠️ EXPERIMENTAL: For testing v154 firmware AES decryption**
+
+To test the v154 decryption feature in Home Assistant:
+
+1. Remove the standard addon if installed
+2. Add the test repository:
+   ```
+   https://github.com/rweijnen/hame-relay/tree/feature/v154-aes-decryption
+   ```
+3. Install "Hame Relay (V154 Test)"
+4. Configure with v154 decryption enabled:
+   ```yaml
+   enable_v154_decryption: true
+   log_level: debug
+   devices:
+     - device_id: "your-device-id"
+       mac: "yourmac"
+       type: "HMA-1"
+       version: 154
+       v154_decryption: true
+   ```
+5. Start the addon and check logs in the "Log" tab
+6. Look for "V154 AES decryption support enabled" and decryption debug messages
 
 ## Installation
 

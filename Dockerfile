@@ -35,7 +35,7 @@ COPY --from=builder /build/dist/ ./dist/
 # Copy brokers configuration
 COPY brokers.json ./brokers.json
 
-# Copy embedded certificates
+# Copy embedded certificates 
 COPY certs/ ./certs/
 
 # Create config directory

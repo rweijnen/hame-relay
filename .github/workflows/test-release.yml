@@ -31,6 +31,19 @@ jobs:
         with:
           ref: ${{ github.event.inputs.tag || github.ref }}
 
+      - name: Create certs directory from secrets
+        run: |
+          mkdir -p certs
+          echo "${{ secrets.CA_CRT }}" | base64 -d > certs/ca.crt
+          echo "${{ secrets.HAME_2024_URL }}" > certs/hame-2024-url
+          echo "${{ secrets.HAME_2024_CRT }}" | base64 -d > certs/hame-2024.crt
+          echo "${{ secrets.HAME_2024_KEY }}" | base64 -d > certs/hame-2024.key
+          echo "${{ secrets.HAME_2025_URL }}" > certs/hame-2025-url
+          echo "${{ secrets.HAME_2025_CRT }}" | base64 -d > certs/hame-2025.crt
+          echo "${{ secrets.HAME_2025_KEY }}" | base64 -d > certs/hame-2025.key
+          echo "${{ secrets.HAME_2025_TOPIC_KEY }}" > certs/hame-2025-topic-encryption-key
+          ls -la certs/
+
       - name: Log in to Container Registry
         uses: docker/login-action@v3
         with:

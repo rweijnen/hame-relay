@@ -74,19 +74,21 @@ Now your storage can be controlled through your own MQTT broker. See [this docum
 
 **⚠️ This is an experimental feature for v154 firmware that encrypts MQTT messages with AES.**
 
+### Quick Start
+
+**For Home Assistant:** Add repository `https://github.com/rweijnen/hame-relay` and install version **1.3.0-beta.1**
+
+**For Docker:** `docker pull ghcr.io/rweijnen/hame-relay:1.3.0-beta.1`
+
 ### Installing the Test Version
 
-#### Docker Installation
+#### Docker Installation (Pre-built Image)
 
-To test the v154 decryption feature, use the experimental branch:
+The easiest way to test v154 decryption is using the pre-built beta release:
 
 ```bash
-# Clone the repository with the v154 decryption branch
-git clone -b feature/v154-aes-decryption https://github.com/rweijnen/hame-relay.git
-cd hame-relay
-
-# Build the Docker image locally
-docker build -t hame-relay-v154:test .
+# Pull the beta release image
+docker pull ghcr.io/rweijnen/hame-relay:1.3.0-beta.1
 
 # Create config directory
 mkdir -p config
@@ -121,7 +123,7 @@ docker run -d \
   --restart unless-stopped \
   -v "$(pwd)/config:/app/config" \
   -e LOG_LEVEL=debug \
-  hame-relay-v154:test
+  ghcr.io/rweijnen/hame-relay:1.3.0-beta.1
 ```
 
 #### Docker Compose Installation
@@ -132,7 +134,7 @@ version: '3.8'
 
 services:
   hame-relay-v154:
-    build: .
+    image: ghcr.io/rweijnen/hame-relay:1.3.0-beta.1
     container_name: hame-relay-v154-test
     restart: unless-stopped
     volumes:
@@ -143,9 +145,7 @@ services:
 
 Then run:
 ```bash
-git clone -b feature/v154-aes-decryption https://github.com/rweijnen/hame-relay.git
-cd hame-relay
-# Create config/config.json with v154 settings (see above)
+# Create config/config.json with v154 settings (see example above)
 docker-compose up -d
 docker-compose logs -f  # View logs
 ```
@@ -338,12 +338,12 @@ docker compose up -d
 
 To test the v154 decryption feature in Home Assistant:
 
-1. Remove the standard addon if installed
-2. Add the test repository:
+1. Add this repository to your addon store:
    ```
-   https://github.com/rweijnen/hame-relay/tree/feature/v154-aes-decryption
+   https://github.com/rweijnen/hame-relay
    ```
-3. Install "Hame Relay (V154 Test)"
+2. Look for "Hame Relay" version **1.3.0-beta.1** in the addon list
+3. Install the beta version
 4. Configure with v154 decryption enabled:
    ```yaml
    enable_v154_decryption: true

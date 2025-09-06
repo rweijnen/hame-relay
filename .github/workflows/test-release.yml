@@ -1,0 +1,137 @@
+name: Build and Push Test Release
+
+on:
+  push:
+    tags:
+      - 'v*-beta.*'
+      - 'v*-alpha.*'
+      - 'v*-test.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to build (e.g., v1.3.0-beta.1)'
+        required: true
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  ADDON_IMAGE_NAME: ${{ github.repository }}-addon
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+            ${{ env.REGISTRY }}/${{ env.ADDON_IMAGE_NAME }}
+          tags: |
+            type=ref,event=tag
+            type=match,pattern=v(.*),group=1
+            type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Build main application image
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Build Home Assistant addon image
+      - name: Update addon config version
+        run: |
+          VERSION="${{ steps.meta.outputs.version }}"
+          sed -i "s/^version:.*/version: \"${VERSION}\"/" hassio-addon/config.yaml
+          cat hassio-addon/config.yaml
+
+      - name: Build and push Home Assistant addon image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./hassio-addon/Dockerfile
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.ADDON_IMAGE_NAME }}:${{ steps.meta.outputs.version }}
+            ${{ env.REGISTRY }}/${{ env.ADDON_IMAGE_NAME }}:test
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Create Release Notes
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Test Release ${{ github.ref_name }}
+          body: |
+            ## 🧪 Experimental V154 Firmware Decryption Test Release
+            
+            This is a test release for v154 firmware AES decryption support.
+            
+            ### ⚠️ Warning
+            This is experimental and for testing purposes only!
+            
+            ### Features
+            - AES-128-CBC decryption for v154 firmware MQTT messages
+            - Decrypted messages sent to local broker (Home Assistant)
+            - Original encrypted messages preserved for Marstek server
+            - Comprehensive debug logging
+            
+            ### Installation
+            
+            #### Docker:
+            ```bash
+            docker pull ghcr.io/rweijnen/hame-relay:${{ steps.meta.outputs.version }}
+            ```
+            
+            #### Home Assistant:
+            Add repository: `https://github.com/rweijnen/hame-relay`
+            Install version: ${{ steps.meta.outputs.version }}
+            
+            ### Configuration
+            ```json
+            {
+              "enable_v154_decryption": true,
+              "log_level": "debug"
+            }
+            ```
+            
+            ### Testing & Feedback
+            Please report issues with v154 decryption at:
+            https://github.com/rweijnen/hame-relay/issues
+          prerelease: true
+          draft: false

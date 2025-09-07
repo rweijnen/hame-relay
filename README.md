@@ -76,9 +76,9 @@ Now your storage can be controlled through your own MQTT broker. See [this docum
 
 ### Quick Start
 
-**For Home Assistant:** Add repository `https://github.com/rweijnen/hame-relay` and install version **1.3.0-beta.1**
+**For Home Assistant:** Add repository `https://github.com/rweijnen/hame-relay` and install version **1.3.0-beta.2**
 
-**For Docker:** `docker pull ghcr.io/rweijnen/hame-relay:1.3.0-beta.1`
+**For Docker:** `docker pull ghcr.io/rweijnen/hame-relay:1.3.0-beta.2`
 
 ### Installing the Test Version
 
@@ -88,7 +88,7 @@ The easiest way to test v154 decryption is using the pre-built beta release:
 
 ```bash
 # Pull the beta release image
-docker pull ghcr.io/rweijnen/hame-relay:1.3.0-beta.1
+docker pull ghcr.io/rweijnen/hame-relay:1.3.0-beta.2
 
 # Create config directory
 mkdir -p config
@@ -123,7 +123,7 @@ docker run -d \
   --restart unless-stopped \
   -v "$(pwd)/config:/app/config" \
   -e LOG_LEVEL=debug \
-  ghcr.io/rweijnen/hame-relay:1.3.0-beta.1
+  ghcr.io/rweijnen/hame-relay:1.3.0-beta.2
 ```
 
 #### Docker Compose Installation
@@ -342,7 +342,7 @@ To test the v154 decryption feature in Home Assistant:
    ```
    https://github.com/rweijnen/hame-relay
    ```
-2. Look for "Hame Relay" version **1.3.0-beta.1** in the addon list
+2. Look for "Hame Relay" version **1.3.0-beta.2** in the addon list
 3. Install the beta version
 4. Configure with v154 decryption enabled:
    ```yaml
